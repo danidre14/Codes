@@ -86,35 +86,35 @@ var Dani = {
     },
     
     base10ToX:function(value, x) {
-        if(x>baseXVals.length) {
-            throw "Error: Conversion to Base "+x+" not supported.";
+        if(x > this.baseXVals.length) {
+            throw "Error: Conversion to Base " + x + " not supported.";
             return 0;
         }
         var rem = [];
-        while(value!=0) {
-            rem.push(baseXVals[(value % x)]);
-            value = Math.floor(value/x);
+        while(value != 0) {
+            rem.push(this.baseXVals[(value % x)]);
+            value = Math.floor(value / x);
         }
         return rem.reverse().join("");
     },
     
     baseXTo10:function(value, x) {
-        if(x>baseXVals.length) {
-            throw "Error: Conversion from Base "+x+" not supported.";
+        if(x > this.baseXVals.length) {
+            throw "Error: Conversion from Base " + x + " not supported.";
             return 0;
         }
         var digits = value.split("").reverse();
         var val = 0;
         for(var i in digits) {        
-            val += baseValHas(baseXVals, digits[i], x)*Math.pow(x,i);
+            val += (this.baseValHas(digits[i], x) * Math.pow(x, i));
         }
         return val;
     },
     
-    baseValHas:function(object, digit, x) {
-        var y = object.indexOf(digit);
-        if(y===-1||y>=x) {
-            throw "Error: Out of Base "+x+" data range: "+digit;
+    baseValHas:function(digit, x) {
+        var y = this.baseXVals.indexOf(digit);
+        if(y === -1 || y >= x) {
+            throw "Error: Out of Base " + x + " data range: " + digit;
             return 0;
     }
         return y;
