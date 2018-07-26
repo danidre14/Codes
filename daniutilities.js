@@ -117,6 +117,11 @@ var Dani = {
     }
         return y;
     },
+    
+    function baseXToY(value, x, y) {
+        var decimal = this.baseXToTen(value, x);
+        return this.baseTenToX(decimal, y);
+    },
 
     trace:function(msg) {
         console.log(msg);
