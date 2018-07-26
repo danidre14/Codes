@@ -141,5 +141,5 @@ var Dani = {
         console.log(msg);
     },
     
-    getVersion:"Version 1.43"
+    getVersion:"Version 1.44"
 };
