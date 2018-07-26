@@ -1,4 +1,6 @@
-var Dani = {    
+var Dani = {   
+    baseXVals:["0","1","2","3","4","5","6","7","8","9","A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z","a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z","@","#","%"],
+    
     sum:function(a, b) {
         return a + b;
     },
@@ -114,11 +116,11 @@ var Dani = {
         if(y === -1 || y >= x) {
             throw "Error: Out of Base " + x + " data range: " + digit;
             return 0;
-    }
+        }
         return y;
     },
     
-    function baseXToY(value, x, y) {
+    baseXToY:function(value, x, y) {
         var decimal = this.baseXToTen(value, x);
         return this.baseTenToX(decimal, y);
     },
@@ -126,7 +128,6 @@ var Dani = {
     trace:function(msg) {
         console.log(msg);
     },
-    baseXVals:["0","1","2","3","4","5","6","7","8","9","A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z","a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z","@","#","%"],
     
-    getVersion:"Version 1.4"
+    getVersion:"Version 1.42"
 };
