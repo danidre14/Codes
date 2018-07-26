@@ -1,4 +1,6 @@
 var Dani = {
+    baseXVals:["0","1","2","3","4","5","6","7","8","9","A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z","a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z","@","#","%"],
+    
     sum:function(a, b) {
         return a + b;
     },
@@ -81,6 +83,41 @@ var Dani = {
                     return orders[i] === -1? 1 : -1;
             }    
         };
+    },
+    
+    base10ToX:function(value, x) {
+        if(x>baseXVals.length) {
+            throw "Error: Conversion to Base "+x+" not supported.";
+            return 0;
+        }
+        var rem = [];
+        while(value!=0) {
+            rem.push(baseXVals[(value % x)]);
+            value = Math.floor(value/x);
+        }
+        return rem.reverse().join("");
+    },
+    
+    baseXTo10:function(value, x) {
+        if(x>baseXVals.length) {
+            throw "Error: Conversion from Base "+x+" not supported.";
+            return 0;
+        }
+        var digits = value.split("").reverse();
+        var val = 0;
+        for(var i in digits) {        
+            val += baseValHas(baseXVals, digits[i], x)*Math.pow(x,i);
+        }
+        return val;
+    },
+    
+    baseValHas:function(object, digit, x) {
+        var y = object.indexOf(digit);
+        if(y===-1||y>=x) {
+            throw "Error: Out of Base "+x+" data range: "+digit;
+            return 0;
+    }
+        return y;
     },
 
     trace:function(msg) {
