@@ -124,10 +124,19 @@ var Dani = {
         var decimal = this.baseXToTen(value, x);
         return this.baseTenToX(decimal, y);
     },
+    
+    fillString:function(string, filler, limit) {
+        for(var i = string.length; i < limit; i++) {
+            string = string.split("");
+            string.unshift(filler);
+            string = string.join("");
+        }
+        return string;
+    },
 
     trace:function(msg) {
         console.log(msg);
     },
     
-    getVersion:"Version 1.42"
+    getVersion:"Version 1.43"
 };
