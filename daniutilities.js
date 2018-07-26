@@ -86,6 +86,7 @@ var Dani = {
     },
     
     baseTenToX:function(value, x) {
+        value = String(value);
         if(x > this.baseXVals.length) {
             throw "Error: Conversion to Base " + x + " not supported.";
             return 0;
@@ -99,6 +100,7 @@ var Dani = {
     },
     
     baseXToTen:function(value, x) {
+        value = String(value);
         if(x > this.baseXVals.length) {
             throw "Error: Conversion from Base " + x + " not supported.";
             return 0;
@@ -111,6 +113,12 @@ var Dani = {
         return val;
     },
     
+    baseXToY:function(value, x, y) {
+        value = String(value);
+        var decimal = this.baseXToTen(value, x);
+        return this.baseTenToX(decimal, y);
+    },
+    
     baseValHas:function(digit, x) {
         var y = this.baseXVals.indexOf(digit);
         if(y === -1 || y >= x) {
@@ -118,11 +126,6 @@ var Dani = {
             return 0;
         }
         return y;
-    },
-    
-    baseXToY:function(value, x, y) {
-        var decimal = this.baseXToTen(value, x);
-        return this.baseTenToX(decimal, y);
     },
     
     fillString:function(string, filler, limit) {
