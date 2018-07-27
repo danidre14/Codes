@@ -136,10 +136,15 @@ var Dani = {
         }
         return string;
     },
+    
+    stringLength:function(value) {
+        value = String(value);
+        return value.length;
+    },
 
     trace:function(msg) {
         console.log(msg);
     },
     
-    getVersion:"Version 1.44"
+    getVersion:"Version 1.445"
 };
