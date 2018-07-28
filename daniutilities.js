@@ -86,10 +86,17 @@ var Dani = {
     },
     
     baseTenToX:function(value, x) {
+        if(isNaN(parseInt(x))) {
+            throw "Error: Conversion to Base ILLEGAL: " + x;
+            return 0;
+        }
+        x = parseInt(x);
         value = String(value);
-        if(x > this.baseXVals.length) {
+        if(x > this.baseXVals.length || x < 1) {
             throw "Error: Conversion to Base " + x + " not supported.";
             return 0;
+        } else if(x === 1) {
+            return this.fillString("", "0", value);
         }
         var rem = [];
         do {
@@ -100,10 +107,23 @@ var Dani = {
     },
     
     baseXToTen:function(value, x) {
+        if(isNaN(parseInt(x))) {
+            throw "Error: Conversion from Base ILLEGAL: " + x;
+            return value;
+        }
+        x = parseInt(x);
         value = String(value);
-        if(x > this.baseXVals.length) {
+        if(x > this.baseXVals.length || x < 1) {
             throw "Error: Conversion from Base " + x + " not supported.";
-            return 0;
+            return value;
+        }
+        if(x === 1) {
+            if(parseInt(value)===0)
+                return this.stringLength(value);
+            else {
+                throw "Error: Base 1 should only contain 0s ";
+                return value;
+            }
         }
         var digits = value.split("").reverse();
         var val = 0;
@@ -129,10 +149,16 @@ var Dani = {
     },
     
     fillString:function(string, filler, limit) {
-        for(var i = string.length; i < limit; i++) {
-            string = string.split("");
+        if(isNaN(parseInt(limit))) {
+            throw "Error: Cannot fill string " + limit + " times.";
+            return string;
+        }
+        limit = parseInt(limit);
+        for(var i = this.stringLength(string); i < limit; i++) {
+            /*string = string.split("");
             string.unshift(filler);
-            string = string.join("");
+            string = string.join("");*/
+            string = filler + "" + string;
         }
         return string;
     },
