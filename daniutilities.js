@@ -96,7 +96,7 @@ var Dani = {
             throw "Error: Conversion to Base " + x + " not supported.";
             return 0;
         } else if(x === 1) {
-            return this.fillString("", "0", value);
+            return this.fillString(this.fillString("", "0", value), "0", 1);
         }
         var rem = [];
         do {
@@ -196,5 +196,5 @@ var Dani = {
         console.log(msg);
     },
     
-    getVersion:"Version 1.5"
+    getVersion:"Version 1.6"
 };
