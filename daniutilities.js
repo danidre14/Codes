@@ -141,10 +141,38 @@ var Dani = {
         value = String(value);
         return value.length;
     },
+    
+    crypt:function(string, x, i, mode) {
+        i = parseInt(this.baseXToY(i, x, 10));
+        string = string.split("");
+        for(var j in string) {
+            string[j] = parseInt(this.baseXToY(string[j], x, 10));
+            string[j] = this.shiftText(string[j], x, (mode? i : -i));
+            string[j] = this.baseXToY(string[j], 10, x);
+        }
+        string = string.join("");
+        return string;
+    },
+    
+    encrypt:function(string, x, i) {
+        return this.crypt(string, x, i, true);
+    },
+    
+    decrypt:function(string, x, i) {
+        return this.crypt(string, x, i, false);
+    },
+    
+    shiftText:function(s, x, i) {
+        s += i;
+        x -= 1;
+        if(s > x) s -= x;
+        else if(s < 0) s += x;
+        return s;
+    },
 
     trace:function(msg) {
         console.log(msg);
     },
     
-    getVersion:"Version 1.445"
+    getVersion:"Version 1.45"
 };
