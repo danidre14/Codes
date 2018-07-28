@@ -116,15 +116,17 @@ var Dani = {
         if(x > this.baseXVals.length || x < 1) {
             throw "Error: Conversion from Base " + x + " not supported.";
             return value;
-        }
+        }       
         if(x === 1) {
-            if(parseInt(value)===0)
+            if(value === "")
+                return 0;
+            else if(parseInt(value)===0)
                 return this.stringLength(value);
             else {
                 throw "Error: Base 1 should only contain 0s ";
                 return value;
             }
-        }
+        }        
         var digits = value.split("").reverse();
         var val = 0;
         for(var i in digits) {        
@@ -196,5 +198,5 @@ var Dani = {
         console.log(msg);
     },
     
-    getVersion:"Version 1.6"
+    getVersion:"Version 1.63"
 };
