@@ -155,9 +155,6 @@ var Dani = {
         }
         limit = parseInt(limit);
         for(var i = this.stringLength(string); i < limit; i++) {
-            /*string = string.split("");
-            string.unshift(filler);
-            string = string.join("");*/
             string = filler + "" + string;
         }
         return string;
