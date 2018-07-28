@@ -92,10 +92,10 @@ var Dani = {
             return 0;
         }
         var rem = [];
-        while(value != 0) {
+        do {
             rem.push(this.baseXVals[(value % x)]);
             value = Math.floor(value / x);
-        }
+        } while(value != 0);
         return rem.reverse().join("");
     },
     
