@@ -164,15 +164,14 @@ var Dani = {
     
     shiftText:function(s, x, i) {
         s += i;
-        x -= 1;
-        if(s > x) s -= x;
+        if(s > (x-1)) s -= x;
         else if(s < 0) s += x;
-        return s;
+        return this.fillString(s, "0", 1);
     },
 
     trace:function(msg) {
         console.log(msg);
     },
     
-    getVersion:"Version 1.45"
+    getVersion:"Version 1.5"
 };
