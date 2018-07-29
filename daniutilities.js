@@ -85,15 +85,16 @@ var Dani = {
         };
     },
     
-   baseTenToX:function(value, x) {
-        if(!this.isNumber(x)) {
-            throw "Error: Conversion to Base " + x + " ILLEGAL";
+    baseTenToX:function(value, x) {
+        if(!this.isInteger(x)) 
+            x = parseInt(x);
+        else {
+            throw "Error: Base " + x + " ILLEGAL";
             return value;
         }
-        x = parseInt(x);
         value = String(value).trim();
-        if(x > this.baseXVals.length || x < 1) {
-            throw "Error: Conversion to Base " + x + " not supported.";
+        if(!this.baseXSupported(x)) {
+            throw "Error: Base " + x + " not supported.";
             return value;
         } else if(x === 1) {
             if(value == 0 || value === "")
@@ -112,14 +113,15 @@ var Dani = {
     },
     
     baseXToTen:function(value, x) {
-        if(!this.isNumber(x)) {
-            throw "Error: Conversion from Base " + x + "ILLEGAL";
+        if(!this.isInteger(x)) 
+            x = parseInt(x);
+        else {
+            throw "Error: Base " + x + " ILLEGAL";
             return value;
         }
-        x = parseInt(x);
         value = String(value);
-        if(x > this.baseXVals.length || x < 1) {
-            throw "Error: Conversion from Base " + x + " not supported.";
+        if(!this.baseXSupported(x)) {
+            throw "Error: Base " + x + " not supported.";
             return value;
         }       
         if(x === 1) {
@@ -144,6 +146,28 @@ var Dani = {
         value = String(value);
         var decimal = this.baseXToTen(value, x);
         return this.baseTenToX(decimal, y);
+    },
+    
+    baseXSupported:function(x) {
+        return (x <= this.baseXVals.length && x >= 1);
+    },
+    
+    baseXDataRange:function(x) {
+        if(!this.isInteger(x)) 
+            x = parseInt(x);
+        else {
+            throw "Error: Base " + x + " ILLEGAL";
+            return x;
+        }
+        var dataRange = [];   
+        if(!this.baseXSupported(x)) {
+            throw "Error: Base " + x + " not supported.";
+            return x;
+        } else {
+            for(var i = 0; i < x; i++)
+                dataRange.push(this.baseXVals[i]);
+        }
+        return dataRange;
     },
     
     baseValHas:function(digit, x) {
@@ -212,6 +236,6 @@ var Dani = {
     },
     
     getVersion:function() {
-        return "Version 0.678";
+        return "Version 0.68";
     }
 };
