@@ -85,7 +85,7 @@ var Dani = {
         };
     },
     
-    baseTenToX:function(value, x) {
+   baseTenToX:function(value, x) {
         if(!this.isNumber(x)) {
             throw "Error: Conversion to Base " + x + " ILLEGAL";
             return value;
@@ -96,11 +96,13 @@ var Dani = {
             throw "Error: Conversion to Base " + x + " not supported.";
             return value;
         } else if(x === 1) {
-            if(value === 0 || value === "")
+            if(value == 0 || value === "")
                 return "";
             else
                 return this.fillString(this.fillString("", "0", value), "0", 1);
         }
+        if(value === "")
+            return "";
         var rem = [];
         do {
             rem.push(this.baseXVals[(value % x)]);
@@ -123,7 +125,7 @@ var Dani = {
         if(x === 1) {
             if(value === "")
                 return 0;
-            else if(this.isInteger(value)&&parseInt(value)===0)
+            else if(this.isInteger(value) && parseInt(value)===0)
                 return this.stringLength(value);
             else {
                 throw "Error: Base 1 should only contain 0s ";
@@ -131,7 +133,7 @@ var Dani = {
             }
         }        
         var digits = value.split("").reverse();
-        var val = 0;
+        var val = (value === "")? "" : 0;
         for(var i in digits) {        
             val += (this.baseValHas(digits[i], x) * Math.pow(x, i));
         }
@@ -210,6 +212,6 @@ var Dani = {
     },
     
     getVersion:function() {
-        return "Version 0.675";
+        return "Version 0.678";
     }
 };
