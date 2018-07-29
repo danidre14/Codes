@@ -86,7 +86,7 @@ var Dani = {
     },
     
     baseTenToX:function(value, x) {
-        if(!this.isInteger(x)) 
+        if(this.isInteger(x)) 
             x = parseInt(x);
         else {
             throw "Error: Base " + x + " ILLEGAL";
@@ -113,7 +113,7 @@ var Dani = {
     },
     
     baseXToTen:function(value, x) {
-        if(!this.isInteger(x)) 
+        if(this.isInteger(x)) 
             x = parseInt(x);
         else {
             throw "Error: Base " + x + " ILLEGAL";
@@ -153,7 +153,7 @@ var Dani = {
     },
     
     baseXDataRange:function(x) {
-        if(!this.isInteger(x)) 
+        if(this.isInteger(x)) 
             x = parseInt(x);
         else {
             throw "Error: Base " + x + " ILLEGAL";
@@ -167,7 +167,7 @@ var Dani = {
             for(var i = 0; i < x; i++)
                 dataRange.push(this.baseXVals[i]);
         }
-        return dataRange;
+        return this.cloneObject(dataRange);
     },
     
     baseValHas:function(digit, x) {
@@ -236,6 +236,6 @@ var Dani = {
     },
     
     getVersion:function() {
-        return "Version 0.68";
+        return "Version 0.681";
     }
 };
