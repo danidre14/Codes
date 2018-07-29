@@ -120,7 +120,7 @@ var Dani = {
         if(x === 1) {
             if(value === "")
                 return 0;
-            else if(this.isNumber(value)&&parseInt(value)===0)
+            else if(this.isInteger(value)&&parseInt(value)===0)
                 return this.stringLength(value);
             else {
                 throw "Error: Base 1 should only contain 0s ";
@@ -206,5 +206,5 @@ var Dani = {
         console.log(msg);
     },
     
-    getVersion:"Version 0.65"
+    getVersion:"Version 0.67"
 };
