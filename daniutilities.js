@@ -91,12 +91,15 @@ var Dani = {
             return value;
         }
         x = parseInt(x);
-        value = String(value);
+        value = String(value).trim();
         if(x > this.baseXVals.length || x < 1) {
             throw "Error: Conversion to Base " + x + " not supported.";
             return value;
         } else if(x === 1) {
-            return this.fillString(this.fillString("", "0", value), "0", 1);
+            if(value === 0 || value === "")
+                return "";
+            else
+                return this.fillString(this.fillString("", "0", value), "0", 1);
         }
         var rem = [];
         do {
@@ -206,5 +209,7 @@ var Dani = {
         console.log(msg);
     },
     
-    getVersion:"Version 0.67"
+    getVersion:function() {
+        return "Version 0.675";
+    }
 };
