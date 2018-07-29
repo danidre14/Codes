@@ -86,15 +86,15 @@ var Dani = {
     },
     
     baseTenToX:function(value, x) {
-        if(isNaN(parseInt(x))) {
-            throw "Error: Conversion to Base ILLEGAL: " + x;
-            return 0;
+        if(!this.isNumber(x)) {
+            throw "Error: Conversion to Base " + x + " ILLEGAL";
+            return value;
         }
         x = parseInt(x);
         value = String(value);
         if(x > this.baseXVals.length || x < 1) {
             throw "Error: Conversion to Base " + x + " not supported.";
-            return 0;
+            return value;
         } else if(x === 1) {
             return this.fillString(this.fillString("", "0", value), "0", 1);
         }
@@ -107,8 +107,8 @@ var Dani = {
     },
     
     baseXToTen:function(value, x) {
-        if(isNaN(parseInt(x))) {
-            throw "Error: Conversion from Base ILLEGAL: " + x;
+        if(!this.isNumber(x)) {
+            throw "Error: Conversion from Base " + x + "ILLEGAL";
             return value;
         }
         x = parseInt(x);
@@ -120,7 +120,7 @@ var Dani = {
         if(x === 1) {
             if(value === "")
                 return 0;
-            else if(parseInt(value)===0)
+            else if(this.isNumber(value)===0)
                 return this.stringLength(value);
             else {
                 throw "Error: Base 1 should only contain 0s ";
@@ -167,6 +167,10 @@ var Dani = {
         return value.length;
     },
     
+    isNumber:function(value) {
+        return /^[0-9]+(\.)?[0-9]*$/.test(value);
+    }
+    
     crypt:function(string, x, i, mode) {
         i = parseInt(this.baseXToY(i, x, 10));
         string = string.split("");
@@ -198,5 +202,5 @@ var Dani = {
         console.log(msg);
     },
     
-    getVersion:"Version 1.63"
+    getVersion:"Version 0.65"
 };
