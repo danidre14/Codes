@@ -169,7 +169,7 @@ var Dani = {
     
     isNumber:function(value) {
         return /^[0-9]+(\.)?[0-9]*$/.test(value);
-    }
+    },
     
     crypt:function(string, x, i, mode) {
         i = parseInt(this.baseXToY(i, x, 10));
