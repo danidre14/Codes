@@ -230,12 +230,16 @@ var Dani = {
         else if(s < 0) s += x;
         return this.fillString(s, "0", 1);
     },
-
+    
+    sign:function(x) {
+        return ((x > 0) - (x < 0)) || +x;
+    },
+   
     trace:function(msg) {
         console.log(msg);
     },
     
     getVersion:function() {
-        return "Version 0.681";
+        return "Version 0.687";
     }
 };
