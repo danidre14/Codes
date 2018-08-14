@@ -1,4 +1,4 @@
-const odf = "ODFE", ofde = "ODF", cdfe = "NDF";
+const odf = "ODFE", odfe = "ODF", cdfe = "NDF";
 const defPortal = [{creator:"Andre Daniel", name:"Poly Former", code:"mmG56mnEZimKPrSn9atmTkD7fIkWmYon5KZICozEa@iWHsm7peNMtUAmUz7urrRWnIURiOld9nNzB1t960ogiOEKdDgmt6HLKmD6oZy2Fe5#smt8IsuhhGUJ41un."+odfe, date:"Aug 13th 2018"},
 {creator:"Andre Daniel", name:"Billy Recoloured", code:"mmWG4EF3VwmxR1AyC5BmiWK4PTuSmUzBY4XpUnjJgZb15Bmkte0JLYmmU@902MCqofBFiIQ9gmUzQLLmfqnFldA2p8QmaAQDRXzgmUz7ne700oVLo6oej@mXOA3dqUomYqOwzAs0nKYUyt7H2mYXbP51blp#dPhEQ6AmtC5@WjDMoOVU7fDLpncJSs9ResmU@0dGte0nvUtunVIOoUoG@he5BmgniCbi1emU@sTVjS2oXUfmSmwymYsvmiZSXmkZI@GK2tnwaXy6lEQmYqOwwVyWn4dSDPhkiocdtLmT64mG54taoRynwU@S@WFFnGmMmovqdmufMnpTXjmYswSc7zBmZhlowIFbm1UDskLTBmZBirkxveXNFsn."+odfe, date:"Aug 10th 2018"},
 {creator:"Andre Daniel", name:"Polyqueen", code:"mmPeWyzRHpp@xAmJsc0olFQhLZjkmt7b9cWnJoWqGNzp3smU@x2nEEWooJiVpT2MmVrgq5UuSnw4o9#mvOnFewTIqlmpCZkPl1YnmYsxqToURmeTKQaPc@m141Q@z5Bnqo@PEA9imUzJ4VquPm1DJmD1cnmYsx5jJ7FmWUbrShvBmWW#Q7oNDo7wjbHS6invPRfR#XnmYsyKs9Avm1sHn46OgmU@w0uUky1AQRDvn."+odfe, date:"Aug 08th 2018"},
