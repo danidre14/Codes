@@ -56,7 +56,7 @@ var Dani = {
     },
     
     pseudo:{
-        s:Math.round(Math.random()*123456789),
+        s:Math.round(Math.random()*999999999),
         index:9,
     
         random:function() {
