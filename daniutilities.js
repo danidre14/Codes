@@ -23,13 +23,14 @@ var Dani = {
 
     random:function(a, b) {
         var result;
+        var random = this.pseudo.random();
         if(a !== null && typeof a === "object") {
             //treat as list
             if(b === 1)
                 result = a[this.random(a.length-1)];
             else
                 result = this.cloneObject(a).sort(function() {
-                    return this.pseudo.random()>.5?-1:1;
+                    return random>.5?-1:1;
                 });
         } else if(typeof a === "string") {
             //treat as string
@@ -37,56 +38,40 @@ var Dani = {
                 result = a.split("")[this.random(a.length-1)];
             else
                 result = a.split("").sort(function() {
-                    return this.pseudo.random()>.5?-1 :1;
+                    return random>.5?-1 :1;
                 }).join("");
         } else if(typeof a === "number") {
             //treat as number
             if(typeof b === "number") {
                 //treat as range
-                result = Math.round(this.pseudo.random() * (b - a)) + a;
+                result = Math.round(random * (b - a)) + a;
             } else {
                 //treat as number
-                result = Math.round(this.pseudo.random() * a);
+                result = Math.round(random * a);
             }
         } else {
             //treat as val between 0 and 1
-            result = this.pseudo.random();
+            result = random;
         }
         return result;
     },
     
-    pseudo:{
+   pseudo:{
         s:Math.round(Math.random()*999999999),
-        index:9,
+        index:4
+    },
     
-        random:function() {
-            var a = this.s.toString().split("");
-            var b = 0;
-            for(var i in a)
-                b += parseInt(a[i]);
-            var c = this.s * b;
-            this.s = this.pull(c, this.index) + 1;
-            var d = Math.pow(10, this.s.toString().length);
-            var e = "0." + this.fillString((this.s / d).toString().substr(2), "0", this.index);
-            return e;
-        },
-    
-        pull:function(number, amount) {
-            value = number.toString();
-            return parseInt(value.substr(0, amount));
-        },
-    
-        fillString:function(string, filler, limit) {
-            if(isNaN(parseInt(limit))) {
-                throw "Error: Cannot fill string " + limit + " times.";
-                return string;
-            }
-            limit = parseInt(limit);
-            for(var i = string.toString().length; i < limit; i++) {
-                string = filler + "" + string;
-            }
-            return string;
-        }
+    pRandom:function() {
+        var s = this.pseudo.s + Date.now();
+        var a = s.toString().split("");
+        var b = 0;
+        for(var i in a)
+            b += parseInt(a[i]);
+        var c = s * b;
+        this.pseudo.s = parseInt(c.toString().substr(0, this.pseudo.index)) + 1;
+        var d = Math.pow(10, this.pseudo.s.toString().length);
+        var e = "0." + this.fillString((this.pseudo.s / d).toString().substr(2), "0", this.pseudo.index);
+        return parseFloat(e);
     },
 
     cloneObject:function(obj){
@@ -274,6 +259,6 @@ var Dani = {
     },
     
     getVersion:function() {
-        return "Version 0.687";
+        return "Version 0.690";
     }
 };
