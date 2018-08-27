@@ -23,7 +23,7 @@ var Dani = {
 
     random:function(a, b) {
         var result;
-        var random = this.pseudo.random();
+        var random = this.pRandom();
         if(a !== null && typeof a === "object") {
             //treat as list
             if(b === 1)
