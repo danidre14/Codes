@@ -56,7 +56,7 @@ var Dani = {
         return result;
     },
     
-   pseudo:{
+    pseudo:{
         s:Math.round(Math.random()*999999999),
         index:4
     },
