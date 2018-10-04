@@ -23,7 +23,7 @@ var Dani = {
 
     random:function(a, b) {
         var result;
-        var random = Math.pRandom();
+        var random = Math.random();
         if(a !== null && typeof a === "object") {
             //treat as list
             if(b === 1)
@@ -259,6 +259,6 @@ var Dani = {
     },
     
     getVersion:function() {
-        return "Version 0.691";
+        return "Version 0.692";
     }
 };
