@@ -259,6 +259,6 @@ var Dani = {
     },
     
     getVersion:function() {
-        return "Version 0.690";
+        return "Version 0.691";
     }
 };
