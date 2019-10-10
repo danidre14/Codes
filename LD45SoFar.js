@@ -5,6 +5,13 @@ const HEIGHT = panel.canvasHeight();
 const SCALE = WIDTH / HEIGHT;
 
 let PAUSED = true;
+
+const leftMouseBtn = 0;
+const rightMouseBtn = 2;
+const actionKey = leftMouseBtn;
+const buildKey = rightMouseBtn;
+let rightClicked = false;
+
 let musicStopped = false;
 
 let init = true;
@@ -19,11 +26,15 @@ screen.msImageSmoothingEnabled = false;
 screen.imageSmoothingEnabled = false;
 
 
-const playerMaxHealth = 100;
+const powerUpDuration = 180;
+const defaultPlayerMaxHealth = 100;
 const bounceDistance = 20;
 const defaultPunchStrength = 24;
 const defaultWallStrength = 55;
-const crosshairSize = 30;
+const defaultPlayerReach = 45;
+
+
+let playerMaxHealth = defaultPlayerMaxHealth;
 let playerHealth = playerMaxHealth;
 let playerX = 0;
 let playerY = 0;
@@ -32,16 +43,21 @@ const playerH = 50;
 let playerBX = 0;
 let playerBY = 0;
 let playerDead = false;
+let canRestart = false;
 let punchStrength = defaultPunchStrength;
 let wallStrength = defaultWallStrength;
-let playerReach = 45;
+let playerReach = defaultPlayerReach;
 
 const scoreEnemyDead = 69;
 const scoreEnemyHit = 3;
 const scorePotionPickup = 11;
 const scorePackagePickup = 42;
+const scorePowerUpPickup = 31;
 
-const adjuster = 900;
+const spawnDropTries = 5;
+const crosshairSize = 30;
+
+const adjuster = 1250;
 
 let movingLeft = false;
 let movingRight = false;
@@ -59,10 +75,10 @@ let walls = 0;
 let canPunch = false;
 let canUsePotion = false;
 
-var Dani = {
+let Dani = {
     random: function (a, b) {
-        var result;
-        var random = Math.random();
+        let result;
+        let random = Math.random();
         if (a !== null && typeof a === "object") {
             //treat as list
             if (b === 1)
@@ -98,8 +114,8 @@ var Dani = {
         if (obj === null || typeof (obj) !== 'object')
             return obj;
 
-        var temp = new obj.constructor();
-        for (var key in obj)
+        let temp = new obj.constructor();
+        for (let key in obj)
             temp[key] = this.cloneObject(obj[key]);
 
         return temp;
@@ -130,19 +146,19 @@ const Aim = function () {
     let range = 0;
     function tick() {
 
-        var newX = mouseCords.x;
-        var newY = mouseCords.y;
-        var xx = newX - playerX;
-        var yy = newY - (playerY - playerW / 2);
-        var angleRad = Math.atan2(yy, xx);
-        var angleDeg = angleRad / Math.PI * 180;
-        var rotation = angleDeg;
+        let newX = mouseCords.x;
+        let newY = mouseCords.y;
+        let xx = newX - playerX;
+        let yy = newY - (playerY - playerW / 2);
+        let angleRad = Math.atan2(yy, xx);
+        let angleDeg = angleRad / Math.PI * 180;
+        let rotation = angleDeg;
 
-        var distance = Math.sqrt((xx * xx) + (yy * yy));
+        let distance = Math.sqrt((xx * xx) + (yy * yy));
         range = distance > playerReach ? playerReach : distance;
 
-        var xMov = Math.cos(rotation * (Math.PI / 180));
-        var yMov = Math.sin(rotation * (Math.PI / 180));
+        let xMov = Math.cos(rotation * (Math.PI / 180));
+        let yMov = Math.sin(rotation * (Math.PI / 180));
         x = playerX + xMov * range;
         y = (playerY - playerW / 2) + yMov * range;
 
@@ -189,7 +205,7 @@ const Entity = function () {
             entities.push(new Enemy(x, y, w, h, type));
         }
     }
-    let deadEntities = [];
+
     function tick() {
         //sort entities based on their y
         entities.sort((a, b) => a.getY() - b.getY());
@@ -197,15 +213,22 @@ const Entity = function () {
             const entity = entities[i];
             entity.tick();
 
-            testCollisions(entity);
+            if (!entity.getIsDead())
+                testCollisions(entity);
+
             if (entity.getRemove()) {
                 entities.splice(parseInt(i), 1);
-                const weights = Dani.random(100);
-                if (weights > 92)
+                const rands = Dani.random(1000);
+                if (rands > 920 - Dani.lock(Math.floor(score/adjuster)*25, 0, 450)) {
+                    gameVars.audios.audio.playOnce('PackageDrop');
                     gameVars.drops.drop('potion', entity.getX(), entity.getY());
+                }
 
-                if (weights > 99)
+                if (rands > 985 - Math.floor(score/adjuster)*5)
                     gameVars.gui.addWall(1);
+
+                if (rands > 950 - Math.floor(score/adjuster)*2)
+                    gameVars.gui.upMaxHealth(Dani.random(12));
             }
         }
     }
@@ -219,6 +242,8 @@ const Entity = function () {
     function isFreeTile(tX, tY) {
         for (const i in entities) {
             const entity = entities[i];
+
+            if (entity.getIsDead()) continue;
 
             const w = entity.getW();
             const h = entity.getH();
@@ -236,18 +261,85 @@ const Entity = function () {
         }
         return true;
     }
+    function testOutBounds(x, y, w, h) {
+        // colliding with borders
+        if (x - (w / 2) < 0) return true;
+        if (x + (w / 2) > WIDTH) return true;
+        if (y - h < 0) return true;
+        if (y > HEIGHT) return true;
+        return false;
+    }
+    function testTouchingTileAxis(x, y, w, h, tiles) {
+        let xAxis = false;
+        let yAxis = false;
+        if (x - (w / 2) < 0 || x + (w / 2) > WIDTH) xAxis = true;
+        if (y - h < 0 || y > HEIGHT) yAxis = true;
+
+        const rightX = getBlockX(x + (w / 2));
+        const leftX = getBlockX(x - (w / 2));
+        const topY = getBlockY(y - h);
+        const bottomY = getBlockY(y);
+
+        const xCenter = getBlockX(x);
+        const yCenter = getBlockY(y - (h / 2));
+
+        //touching wall
+        if (isTouchingTile(leftX, yCenter, tiles) || isTouchingTile(rightX, yCenter, tiles)) xAxis = true;
+        if (isTouchingTile(xCenter, topY, tiles) || isTouchingTile(xCenter, bottomY, tiles)) yAxis = true;
+
+        return { x: xAxis, y: yAxis }
+    }
+    function testTouchingTile(x, y, w, h, tiles) {
+        const rightX = getBlockX(x + (w / 2));
+        const leftX = getBlockX(x - (w / 2));
+        const topY = getBlockY(y - h);
+        const bottomY = getBlockY(y);
+
+        const xLeft = getBlockX(x - (w / 4))
+        const xRight = getBlockX(x + (w / 4));
+        const yTop = getBlockY(y - (h * 3 / 4));
+        const yBottom = getBlockY(y - (h / 4));
+
+        //touching wall
+        if (isTouchingTile(leftX, yBottom, tiles) || isTouchingTile(leftX, yTop, tiles)) {
+            return true
+        }
+        if (isTouchingTile(rightX, yBottom, tiles) || isTouchingTile(rightX, yTop, tiles)) {
+            return true
+        }
+        if (isTouchingTile(xLeft, topY, tiles) || isTouchingTile(xRight, topY, tiles)) {
+            return true
+        }
+        if (isTouchingTile(xLeft, bottomY, tiles) || isTouchingTile(xRight, bottomY, tiles)) {
+            return true
+        }
+        return false;
+    }
+    function isTouchingTile(x, y, tiles) {
+        try {
+            for (const i in tiles) {
+                if (gameVars.level.isBlock(x, y, tiles[i]))
+                    return true;
+            }
+        } catch {
+            return false;
+        }
+    }
 
     function testCollisions(self) {
+        let collided = false;
         const w = self.getW();
         const h = self.getH();
         const x = self.getX();
         const y = self.getY();
 
         // colliding with borders
-        if (x - (w / 2) < 0) self.setX(w / 2);
-        if (x + (w / 2) > WIDTH) self.setX(WIDTH - w / 2);
-        if (y - h < 0) self.setY(h);
-        if (y > HEIGHT) self.setY(HEIGHT);
+        if (x - (w / 2) < 0) {
+            collided = true; self.setX(w / 2);
+        }
+        if (x + (w / 2) > WIDTH) { collided = true; self.setX(WIDTH - w / 2); }
+        if (y - h < 0) { collided = true; self.setY(h); }
+        if (y > HEIGHT) { collided = true; self.setY(HEIGHT); }
 
         // colliding with walls
         //collisions
@@ -262,53 +354,151 @@ const Entity = function () {
         const yBottom = getBlockY(y - (h / 4));
 
         // left collide
-        if (collide(leftX, yBottom) || collide(leftX, yTop)) {
-            //self.setX(x + Math.abs(x - (w / 2) - ((leftX + 1) * gameVars.level.size)));
-            var newX = leftX * gameVars.level.size + gameVars.level.size;
-            var newY = yTop * gameVars.level.size + gameVars.level.size/2;
-            var xx = newX - (x - (w / 2));
-            var yy = newY - (y-h/2);
-            var angleRad = Math.atan2(yy, xx);
-            var angleDeg = angleRad / Math.PI * 180;
-            var distance = Math.sqrt((xx * xx) + (yy * yy)) + 1;
+        if (collide(leftX, yTop)) {
+            collided = true;
+            let newX = leftX * gameVars.level.size + gameVars.level.size;
+            let newY = yTop * gameVars.level.size + gameVars.level.size / 2;
+            let xx = newX - (x - (w / 2));
+            let yy = newY - (y - (h * 3 / 4));
+            let angleRad = Math.atan2(yy, xx);
+            let angleDeg = angleRad / Math.PI * 180;
 
-
-            var rotation = angleDeg;
-            var xMov = Math.cos(rotation * (Math.PI / 180));
-            var yMov = Math.sin(rotation * (Math.PI / 180));
-            console.log(newX, xx, xMov)
-            self.setX(-xMov * distance, true);
-            self.setY(-yMov * distance, true);
-            // x += xMov * distance;
-            // y += yMov * distance;
+            let rotation = angleDeg;
+            let yMov = Math.sin(rotation * (Math.PI / 180));
+            const newDD = Math.round(xx + 1);
+            self.setX(x + newDD);
+            self.setY(y - yMov);
         }
-        if (touchingWall(leftX, yBottom) || touchingWall(leftX, yTop)) {
-            self.setTouchingWall(true);
+        if (collide(leftX, yBottom)) {
+            collided = true;
+            let newX = leftX * gameVars.level.size + gameVars.level.size;
+            let newY = yBottom * gameVars.level.size + gameVars.level.size / 2;
+            let xx = newX - (x - (w / 2));
+            let yy = newY - (y - (h / 4));
+            let angleRad = Math.atan2(yy, xx);
+            let angleDeg = angleRad / Math.PI * 180;
+
+            let rotation = angleDeg;
+            let yMov = Math.sin(rotation * (Math.PI / 180));
+            const newDD = Math.round(xx + 1);
+            self.setX(x + newDD);
+            self.setY(y - yMov);
         }
 
         // right collide
-        if (collide(rightX, yBottom) || collide(rightX, yTop)) {
-            self.setX(x - Math.abs(x + (w / 2) - (rightX * gameVars.level.size)));
+        if (collide(rightX, yTop)) {
+            collided = true;
+            let newX = rightX * gameVars.level.size;
+            let newY = yTop * gameVars.level.size + gameVars.level.size / 2;
+            let xx = newX - (x + (w / 2));
+            let yy = newY - (y - (h * 3 / 4));
+            let angleRad = Math.atan2(yy, xx);
+            let angleDeg = angleRad / Math.PI * 180;
+
+            let rotation = angleDeg;
+            let yMov = Math.sin(rotation * (Math.PI / 180));
+            const newDD = Math.round(xx - 1);
+            self.setX(x + newDD);
+            self.setY(y - yMov);
         }
-        if (touchingWall(rightX, yBottom) || touchingWall(rightX, yTop)) {
-            self.setTouchingWall(true);
+        if (collide(rightX, yBottom)) {
+            collided = true;
+            let newX = rightX * gameVars.level.size;
+            let newY = yBottom * gameVars.level.size + gameVars.level.size / 2;
+            let xx = newX - (x + (w / 2));
+            let yy = newY - (y - (h / 4));
+            let angleRad = Math.atan2(yy, xx);
+            let angleDeg = angleRad / Math.PI * 180;
+
+            let rotation = angleDeg;
+            let yMov = Math.sin(rotation * (Math.PI / 180));
+            const newDD = Math.round(xx - 1);
+            self.setX(x + newDD);
+            self.setY(y - yMov);
         }
 
         // top collide
-        if (collide(xLeft, topY) || collide(xRight, topY)) {
-            self.setY(y + Math.abs(y - h - ((topY + 1) * gameVars.level.size)));
+        if (collide(xLeft, topY)) {
+            collided = true;
+            let newX = xLeft * gameVars.level.size + gameVars.level.size / 2;
+            let newY = topY * gameVars.level.size + gameVars.level.size;
+            let xx = newX - (x - (w / 4));
+            let yy = newY - (y - h);
+            let angleRad = Math.atan2(yy, xx);
+            let angleDeg = angleRad / Math.PI * 180;
+
+            let rotation = angleDeg;
+            let xMov = Math.cos(rotation * (Math.PI / 180));
+            const newDD = Math.round(yy + 1);
+            self.setX(x - xMov);
+            self.setY(y + newDD);
         }
-        if (touchingWall(xLeft, topY) || touchingWall(xRight, topY)) {
-            self.setTouchingWall(true);
+        if (collide(xRight, topY)) {
+            collided = true;
+            let newX = xRight * gameVars.level.size + gameVars.level.size / 2;
+            let newY = topY * gameVars.level.size + gameVars.level.size;
+            let xx = newX - (x + (w / 4));
+            let yy = newY - (y - h);
+            let angleRad = Math.atan2(yy, xx);
+            let angleDeg = angleRad / Math.PI * 180;
+
+            let rotation = angleDeg;
+            let xMov = Math.cos(rotation * (Math.PI / 180));
+            const newDD = Math.round(yy + 1);
+            self.setX(x - xMov);
+            self.setY(y + newDD);
         }
 
         // bottom collide
+        if (collide(xLeft, bottomY)) {
+            collided = true;
+            let newX = xLeft * gameVars.level.size + gameVars.level.size / 2;
+            let newY = bottomY * gameVars.level.size;
+            let xx = newX - (x - (w / 4));
+            let yy = newY - y;
+            let angleRad = Math.atan2(yy, xx);
+            let angleDeg = angleRad / Math.PI * 180;
+
+            let rotation = angleDeg;
+            let xMov = Math.cos(rotation * (Math.PI / 180));
+            const newDD = Math.round(yy - 1);
+            self.setX(x - xMov);
+            self.setY(y + newDD);
+        }
+        if (collide(xRight, bottomY)) {
+            collided = true;
+            let newX = xRight * gameVars.level.size + gameVars.level.size / 2;
+            let newY = bottomY * gameVars.level.size;
+            let xx = newX - (x + (w / 4));
+            let yy = newY - y;
+            let angleRad = Math.atan2(yy, xx);
+            let angleDeg = angleRad / Math.PI * 180;
+
+            let rotation = angleDeg;
+            let xMov = Math.cos(rotation * (Math.PI / 180));
+            const newDD = Math.round(yy - 1);
+            self.setX(x - xMov);
+            self.setY(y + newDD);
+        }
+
+        //locks
+        if (collide(leftX, yBottom) || collide(leftX, yTop)) {
+            collided = true;
+            self.setX(x + Math.abs(x - (w / 2) - ((leftX + 1) * gameVars.level.size) - 1));
+        }
+        if (collide(rightX, yBottom) || collide(rightX, yTop)) {
+            collided = true;
+            self.setX(x - Math.abs(x + (w / 2) - (rightX * gameVars.level.size) + 1));
+        }
+        if (collide(xLeft, topY) || collide(xRight, topY)) {
+            collided = true;
+            self.setY(y + Math.abs(y - h - ((topY + 1) * gameVars.level.size) - 1));
+        }
         if (collide(xLeft, bottomY) || collide(xRight, bottomY)) {
-            self.setY(y - Math.abs(y - (bottomY * gameVars.level.size)));
+            collided = true;
+            self.setY(y - Math.abs(y - (bottomY * gameVars.level.size) + 1));
         }
-        if (touchingWall(xLeft, bottomY) || touchingWall(xRight, bottomY)) {
-            self.setTouchingWall(true);
-        }
+        //if(self.getType() === "enem" && collided && self.getIsDead()) self.setRemove(true);
     }
 
     function processPunch() {
@@ -316,31 +506,35 @@ const Entity = function () {
             const entity = entities[i];
             if (entity.getType() === 'char') continue;
             if (entity.getIsDead()) continue;
-            var newX = crosshairCord.x;
-            var newY = crosshairCord.y;
-            var xx = newX - entity.getX();
-            var yy = newY - (entity.getY() - entity.getH() / 2);
-            var distance = Math.sqrt((xx * xx) + (yy * yy));
+            let newX = crosshairCord.x;
+            let newY = crosshairCord.y;
+            let xx = newX - entity.getX();
+            let yy = newY - (entity.getY() - entity.getH() / 2);
+            let distance = Math.sqrt((xx * xx) + (yy * yy));
 
             newX = playerX;
             newY = (playerY - playerW / 2);
             xx = newX - entity.getX();
             yy = newY - (entity.getY() - entity.getH() / 2);
-            var angleRad = Math.atan2(yy, xx);
-            var angleDeg = angleRad / Math.PI * 180;
-            var rotation = angleDeg;
-            var enemyD = entity.getW() / 2;
+            let angleRad = Math.atan2(yy, xx);
+            let angleDeg = angleRad / Math.PI * 180;
+            let rotation = angleDeg;
+            let enemyD = entity.getW() / 2;
             if (distance < (enemyD + crosshairSize / 2)) {
                 entity.playHurtFrame();
                 entity.setHealth(-Dani.random(punchStrength - 5, punchStrength), true);
+                entity.turnHostile();
 
-                var xMov = Math.cos(rotation * (Math.PI / 180));
-                var yMov = Math.sin(rotation * (Math.PI / 180));
+                let xMov = Math.cos(rotation * (Math.PI / 180));
+                let yMov = Math.sin(rotation * (Math.PI / 180));
                 gameVars.gui.addScore(scoreEnemyHit);
-                gameVars.audios.audio.playOnce('EnemyHurt');
+                if(gameVars.powerups.isStrength())
+                    gameVars.audios.audio.playOnce('EnemyHurtHard');
+                else
+                    gameVars.audios.audio.playOnce('EnemyHurt');
 
-                entity.setX(-xMov * bounceDistance, true);
-                entity.setY(-yMov * bounceDistance, true);
+                entity.setX(-xMov * crosshairSize / 4, true);
+                entity.setY(-yMov * crosshairSize / 4, true);
             }
         }
     }
@@ -384,7 +578,10 @@ const Entity = function () {
         Length,
         isFreeTile,
         processPunch,
-        reset
+        reset,
+        testTouchingTile,
+        testTouchingTileAxis,
+        testOutBounds
     }
 }
 
@@ -403,7 +600,12 @@ const Character = function (x, y, w, h, type) {
     let hW = 16;
     let hH = 16;
 
+    let weight = Math.floor(score / adjuster);
+
     let touchingWall = false;
+
+    let barrageClickCount = Dani.lock(5 - weight / 5, 1, 5);
+    let barrageClickCounter = barrageClickCount;
 
     let walkAnim = 4;
     let walking = false;
@@ -413,6 +615,9 @@ const Character = function (x, y, w, h, type) {
     const punchFrame = 5;
     const hurtFrame = 6;
     const deadFrame = 7;
+
+    let removeCount = 0;
+    const removeCounter = 50;
 
     let canRemove = false;
 
@@ -442,6 +647,9 @@ const Character = function (x, y, w, h, type) {
     function getH() {
         return h;
     }
+    function setRemove(val) {
+        canRemove = val || canRemove;
+    }
     function getRemove() {
         return canRemove;
     }
@@ -465,8 +673,14 @@ const Character = function (x, y, w, h, type) {
         }
         health = Dani.lock(health, 0, maxHealth);
     }
+    function getSpeed() {
+        return speed;
+    }
     function playHurtFrame(val) {
         hX = hurtFrame; //hurt
+    }
+    function getIsDead() {
+        return playerDead;
     }
 
 
@@ -526,27 +740,27 @@ const Character = function (x, y, w, h, type) {
             }
             if (punchBack.length > 0) {
                 for (const i in punchBack) {
-                    var newX = punchBack[i].x;
-                    var newY = punchBack[i].y;
-                    var xx = newX - x;
-                    var yy = newY - (y - h / 2);
-                    var distance = Math.sqrt((xx * xx) + (yy * yy));
-                    var angleRad = Math.atan2(yy, xx);
-                    var angleDeg = angleRad / Math.PI * 180;
-                    var rotation = angleDeg;
-                    var enemyD = punchBack[i].w;
-                    var playerD = w / 2;
-                    if (distance < (enemyD + playerD)) {
+                    let newX = punchBack[i].x;
+                    let newY = punchBack[i].y;
+                    let xx = newX - x;
+                    let yy = newY - (y - h / 2);
+                    let distance = Math.sqrt((xx * xx) + (yy * yy));
+                    let angleRad = Math.atan2(yy, xx);
+                    let angleDeg = angleRad / Math.PI * 180;
+                    let rotation = angleDeg;
+                    let enemyFistSize = punchBack[i].r;
+                    let playerD = w / 2;
+                    if (distance < (enemyFistSize + playerD)) {
                         hX = hurtFrame; //hurt
                         let dmg = punchBack[i].dmg
                         playerHealth -= Dani.random(dmg - 5, dmg);
                         playerHealth = Dani.lock(playerHealth, 0, playerMaxHealth);
 
-                        var xMov = Math.cos(rotation * (Math.PI / 180));
-                        var yMov = Math.sin(rotation * (Math.PI / 180));
+                        let xMov = Math.cos(rotation * (Math.PI / 180));
+                        let yMov = Math.sin(rotation * (Math.PI / 180));
                         gameVars.audios.audio.playOnce('PlayerHurt');
-                        x -= xMov * playerD;
-                        y -= yMov * playerD;
+                        x -= xMov * enemyFistSize / 2;
+                        y -= yMov * enemyFistSize / 2;
                         if (playerHealth <= 0) {
                             playerDead = true;
                             gameVars.audios.audio.playOnce('PlayerDeath');
@@ -555,19 +769,44 @@ const Character = function (x, y, w, h, type) {
                 }
                 punchBack = [];
             }
+            if (gameVars.powerups.isBarrage()) {
+                weight = Math.floor(score / adjuster);
+                barrageClickCount = Dani.lock(5 - weight / 5, 1, 5);
+                if (barrageClickCounter <= 0) {
+                    performClick();
+                    barrageClickCounter = barrageClickCount;
+                } else {
+                    barrageClickCounter--;
+                }
+            }
+            if (gameVars.powerups.isStrength()) {
+                weight = Math.floor(score / adjuster);
+                punchStrength = defaultPunchStrength + defaultPunchStrength * weight / 3 + Dani.random(15);
+                wallStrength = defaultWallStrength + defaultPunchStrength * weight / 3 + Dani.random(15);
+                barrageClickCount = Dani.lock(5 - weight / 5, 1, 5);
+            } else {
+                if (punchStrength !== defaultPunchStrength) punchStrength = defaultPunchStrength;
+                if (wallStrength !== defaultWallStrength) wallStrength = defaultWallStrength;
+            }
         } else {
-            // if(removeCount >= removeCounter) {
-            //     removeCount = 0;
-            //     canRemove = true;
-            // } else {
-            //     removeCount++;
-            // }
+            if (removeCount >= removeCounter) {
+                removeCount = 0;
+                canRemove = true;
+                canRestart = true;
+            } else {
+                removeCount++;
+            }
             hX = deadFrame; //dead
         }
     }
 
     function render() {
-        // draw('charr', playerBX, playerBY, w+5, h+5);
+        if (gameVars.powerups.isStrength()) {
+            drawImg('glowStrength', x - w, y - h * 3 / 2, w * 2, h * 2);
+        }
+        if (gameVars.powerups.isBarrage()) {
+            drawImg('glowBarrage', x - w, y - h * 3 / 2, w * 2, h * 2);
+        }
 
         drawImg('player', x - (w / 2), y - h, w, h, hX * hW, hY * hH, hW, hH);
     }
@@ -581,12 +820,15 @@ const Character = function (x, y, w, h, type) {
         setX,
         setY,
         getRemove,
+        setRemove,
         setTouchingWall,
         getTouchingWall,
         getType,
         getHealth,
         setHealth,
-        playHurtFrame
+        getSpeed,
+        playHurtFrame,
+        getIsDead
     }
 }
 
@@ -603,8 +845,10 @@ const Enemy = function (x, y, w, h, type) {
     let hW = 16;
     let hH = 16;
 
-    const weight = Math.floor(score/adjuster);
-    const eStrength = Dani.random(10+weight, 15+weight);
+    const weight = Math.floor(score / adjuster);
+    const eStrength = Dani.random(10 + weight, 15 + weight);
+    const eWallStrength = Dani.random(3 + weight, 8 + weight);
+    const eReach = Dani.lock(23 + weight, 23, 30);
 
     let touchingWall = false;
 
@@ -618,19 +862,22 @@ const Enemy = function (x, y, w, h, type) {
     const deadFrame = 7;
 
     let attackCount = 0;
-    const attackCounter = 10;
+    const attackCounter = Dani.lock(12 - weight, 5, 12);
     let wallBreakCount = 0;
-    const wallBreakCounter = 10;
+    const wallBreakCounter = Dani.lock(10 - weight, 4, 10);
 
     let removeCount = 0;
     const removeCounter = 50;
 
-    const maxHealth = 50 + weight*10;
+    const maxHealth = 50 + weight * 5;
     let health = maxHealth;
     let isDead = false;
     let canRemove = false;
 
     let speed = 4;
+
+    let enemAimCord = { x: 0, y: 0, bX: 0, bY: 0 };
+    const enemAimSize = 30;
 
 
     function setX(val, increment) {
@@ -659,6 +906,9 @@ const Enemy = function (x, y, w, h, type) {
     function getH() {
         return h;
     }
+    function setRemove(val) {
+        canRemove = val || canRemove;
+    }
     function getRemove() {
         return canRemove;
     }
@@ -682,11 +932,17 @@ const Enemy = function (x, y, w, h, type) {
         }
         health = Dani.lock(health, 0, maxHealth);
     }
+    function getSpeed() {
+        return speed;
+    }
     function playHurtFrame(val) {
         hX = hurtFrame; //hurt
     }
     function getIsDead() {
         return isDead;
+    }
+    function turnHostile() {
+        followingPlayer = true;
     }
 
     let xMove = 0;
@@ -696,9 +952,32 @@ const Enemy = function (x, y, w, h, type) {
     let followingPlayer = false;
     let xDir = 1;
 
-    var nextMoves;
-    var nextMove;
-    var targetMet = true;
+    let nextMoves;
+    let nextMove;
+    let targetMet = true;
+
+    function getAimCord(targetX, targetY, enemX, enemY, enemW, enemH) {
+        let newX = targetX;
+        let newY = targetY - playerW / 2;
+        let xx = newX - enemX;
+        let yy = newY - (enemY - enemW / 2);
+        let angleRad = Math.atan2(yy, xx);
+        let angleDeg = angleRad / Math.PI * 180;
+        let rotation = angleDeg;
+
+        let distance = Math.sqrt((xx * xx) + (yy * yy));
+        range = distance > eReach ? eReach : distance;
+
+        let xMov = Math.cos(rotation * (Math.PI / 180));
+        let yMov = Math.sin(rotation * (Math.PI / 180));
+        const x = enemX + xMov * range;
+        const y = (enemY - playerW / 2) + yMov * range;
+
+        const bX = (Math.floor(x / gameVars.level.size) * gameVars.level.size);
+        const bY = (Math.floor(y / gameVars.level.size) * gameVars.level.size);
+
+        enemAimCord = { x: x, y: y, bX: bX, bY: bY };
+    }
     function tick() {
         if (!isDead) {
             if (health <= 0) {
@@ -714,56 +993,36 @@ const Enemy = function (x, y, w, h, type) {
                 const playersY = Math.floor(playerBY / gameVars.level.size);
                 const blockX = Math.floor(blX / gameVars.level.size);
                 const blockY = Math.floor(blY / gameVars.level.size);
-                nextMoves = gameVars.level.path({ x: blockX, y: blockY }, { x: playersX, y: playersY });
+                nextMoves = gameVars.level.findPath({ x: blockX, y: blockY }, { x: playersX, y: playersY }, [Tile.floor]);
+                if (nextMoves.length === 0) nextMoves = gameVars.level.findPath({ x: blockX, y: blockY }, { x: playersX, y: playersY }, [Tile.floor, Tile.wall]);
                 if (nextMoves.length === 0) { //chase
-                    var newX = playerX;
-                    var newY = playerY;
-                    var xx = newX - x;
-                    var yy = newY - y;
-                    var angleRad = Math.atan2(yy, xx);
-                    var angleDeg = angleRad / Math.PI * 180;
-
-                    var distance = Math.sqrt((xx * xx) + (yy * yy));
-
-                    var rotation = angleDeg;
-                    if (distance > speed) {
-                        walking = true;
-                        var xMov = Math.cos(rotation * (Math.PI / 180));
-                        var yMov = Math.sin(rotation * (Math.PI / 180));
-                        x += xMov * speed;
-                        y += yMov * speed;
-                        if (xMov > 0) xDir = 1;
-                        else if (xMov < 0) xDir = -1;
+                    if (Dani.random(100) > 48) {
+                        followingPlayer = false;
                     } else {
-                        walking = false;
-                    }
+                        let newX = playerX;
+                        let newY = playerY;
+                        let xx = newX - x;
+                        let yy = newY - y;
+                        let angleRad = Math.atan2(yy, xx);
+                        let angleDeg = angleRad / Math.PI * 180;
 
-                    if (touchingWall) {
-                        let bX = (Math.floor((x - 5) / gameVars.level.size) * gameVars.level.size) + w / 2;
-                        let bY = (Math.floor((y - 10) / gameVars.level.size) * gameVars.level.size) + h;
-                        if (wallBreakCount >= wallBreakCounter) {
-                            wallBreakCount = 0;
+                        let distance = Math.sqrt((xx * xx) + (yy * yy));
 
-                            if (playerBX > bX) {
-                                gameVars.checker.punchWall(bX, bY, 1, 0, eStrength, 'enemy');
-                                hX = punchFrame;
-                            } else if (playerBX < bX) {
-                                gameVars.checker.punchWall(bX, bY, -1, 0, eStrength, 'enemy');
-                                hX = punchFrame;
-                            }
-                            if (playerBY > bY) {
-                                gameVars.checker.punchWall(bX, bY, 0, 1, eStrength, 'enemy')
-                                hX = punchFrame;
-                            } else if (playerBY < bY) {
-                                gameVars.checker.punchWall(bX, bY, 0, -1, eStrength, 'enemy');
-                                hX = punchFrame;
-                            }
+                        let rotation = angleDeg;
+                        if (distance > speed) {
+                            walking = true;
+                            let xMov = Math.cos(rotation * (Math.PI / 180));
+                            let yMov = Math.sin(rotation * (Math.PI / 180));
+                            x += xMov * speed;
+                            y += yMov * speed;
+                            if (xMov > 0) xDir = 1;
+                            else if (xMov < 0) xDir = -1;
                         } else {
-                            wallBreakCount++;
+                            walking = false;
                         }
-                        touchingWall = false;
+                        getAimCord(newX, newY, x, y, w, h);
                     }
-                } else { //pathfind
+                } else { //pathfing
                     walking = true;
 
                     if (targetMet) {
@@ -771,17 +1030,17 @@ const Enemy = function (x, y, w, h, type) {
                         targetMet = false;
                     }
 
-                    var newX = nextMove.x * gameVars.level.size + w / 2;
-                    var newY = nextMove.y * gameVars.level.size + h;
-                    var xx = newX - x;
-                    var yy = newY - y;
-                    var angleRad = Math.atan2(yy, xx);
-                    var angleDeg = angleRad / Math.PI * 180;
-                    var distance = Math.sqrt((xx * xx) + (yy * yy));
+                    let newX = nextMove.x * gameVars.level.size + w / 2;
+                    let newY = nextMove.y * gameVars.level.size + h;
+                    let xx = newX - x;
+                    let yy = newY - y;
+                    let angleRad = Math.atan2(yy, xx);
+                    let angleDeg = angleRad / Math.PI * 180;
+                    let distance = Math.sqrt((xx * xx) + (yy * yy));
 
-                    var rotation = angleDeg;
-                    var xMov = Math.cos(rotation * (Math.PI / 180));
-                    var yMov = Math.sin(rotation * (Math.PI / 180));
+                    let rotation = angleDeg;
+                    let xMov = Math.cos(rotation * (Math.PI / 180));
+                    let yMov = Math.sin(rotation * (Math.PI / 180));
                     x += xMov * speed;
                     y += yMov * speed;
 
@@ -791,17 +1050,47 @@ const Enemy = function (x, y, w, h, type) {
                     if (distance < speed) {
                         targetMet = true;
                     }
+                    getAimCord(newX, newY + h / 2, x, y, w, h);
                 }
 
-                if (Dani.random(100) > 98) {
+                touchingWall = gameVars.entities.testTouchingTile(x, y, w, h, [Tile.wall]);
+                if (touchingWall) {
+                    if (wallBreakCount >= wallBreakCounter) {
+                        wallBreakCount = 0;
+
+                        gameVars.checker.punchWall(enemAimCord.bX, enemAimCord.bY, Dani.random(eWallStrength - 2, eWallStrength), 'enemy');
+                        hX = punchFrame;
+                    } else {
+                        wallBreakCount++;
+                    }
+                    touchingWall = false;
+                }
+
+                if (Dani.random(100) > 99) {
                     followingPlayer = false;
+                }
+
+
+                if (!playerDead && nearChar()) {
+                    if (attackCount >= attackCounter) {
+                        attackCount = 0;
+                        hX = punchFrame; //punch
+                        punchBack.push({ x: enemAimCord.x, y: enemAimCord.y, r: enemAimSize / 2, dmg: eStrength });
+                    } else {
+                        attackCount++;
+                    }
                 }
             } else { //idle
                 x += xMove * speed;
                 y += yMove * speed;
-                if (Dani.random(100) > 97) {
-                    xMove = parseInt(Dani.random([-1, 0, 1], 1));
-                    yMove = parseInt(Dani.random([-1, 0, 1], 1));
+                touchingWall = gameVars.entities.testTouchingTile(x, y, w, h, [Tile.wall, Tile.bedrock]) || gameVars.entities.testOutBounds(x, y, w, h);
+                if (touchingWall) {
+                    const touchTileAxis = gameVars.entities.testTouchingTileAxis(x, y, w, h, [Tile.wall, Tile.bedrock]);
+                    if (touchTileAxis.x) xMove = 0;
+                    if (touchTileAxis.y) yMove = 0;
+                } else {
+                    if (Dani.random(100) > 96) xMove = parseInt(Dani.random([-1, 1], 1));
+                    if (Dani.random(100) > 96) yMove = parseInt(Dani.random([-1, 1], 1));
                 }
                 if (xMove === 1 || xMove === -1) {
                     xDir = xMove;
@@ -811,8 +1100,9 @@ const Enemy = function (x, y, w, h, type) {
                 } else {
                     walking = true;
                 }
+                getAimCord(playerX, playerY, x, y, w, h);
 
-                if (Dani.random(100) > 95) {
+                if (Dani.random(100) > 96) {
                     followingPlayer = true;
                 }
             }
@@ -834,17 +1124,9 @@ const Enemy = function (x, y, w, h, type) {
                 walkCount = 0;
                 hX = 0;
             }
-            if (!playerDead && nearChar()) {
-                if (attackCount >= attackCounter) {
-                    attackCount = 0;
-                    hX = punchFrame; //punch
-                    punchBack.push({ x, y: y - (h / 2), w: w / 2, dmg: eStrength });
-                } else {
-                    attackCount++;
-                }
-            }
 
         } else {
+            if (gameVars.entities.testTouchingTile(x, y, w / 2, h / 2, [Tile.wall, Tile.bedrock])) canRemove = true;
             if (removeCount >= removeCounter) {
                 removeCount = 0;
                 canRemove = true;
@@ -859,16 +1141,19 @@ const Enemy = function (x, y, w, h, type) {
         // for(let i in nextMoves)
         //     draw('enemm', nextMoves[i].x * gameVars.level.size + w/2, nextMoves[i].y * gameVars.level.size + h, w, h);
         drawImg('enemy', x - (w / 2), y - h, w, h, hX * hW, hY * hH, hW, hH);
+        if (followingPlayer && !isDead)
+            drawImg('enemAim', enemAimCord.x - gameVars.level.size / 2, enemAimCord.y - gameVars.level.size / 2, gameVars.level.size, gameVars.level.size);
+        /*drawImg('buildOptions', enemAimCord.bX, enemAimCord.bY, gameVars.level.size, gameVars.level.size);*/
     }
 
     function nearChar() {
-        var newX = playerX;
-        var newY = playerY - playerH / 2;
-        var xx = newX - x;
-        var yy = newY - (y - h / 2);
-        var distance = Math.sqrt((xx * xx) + (yy * yy));
+        let newX = playerX;
+        let newY = playerY - playerH / 2;
+        let xx = newX - enemAimCord.x;
+        let yy = newY - (enemAimCord.y);
+        let distance = Math.sqrt((xx * xx) + (yy * yy));
 
-        var enemyD = w / 2;
+        let enemyD = enemAimSize / 2;
         if (distance < (enemyD + playerW / 2)) {
             return true
         }
@@ -885,21 +1170,24 @@ const Enemy = function (x, y, w, h, type) {
         setX,
         setY,
         getRemove,
+        setRemove,
         setTouchingWall,
         getTouchingWall,
         getType,
         getHealth,
         setHealth,
+        getSpeed,
         playHurtFrame,
-        getIsDead
+        getIsDead,
+        turnHostile
     }
 }
 
 const Font = function (pathRef) {
-    var path = pathRef ? pathRef : "PixelFont/font_";
+    let path = pathRef ? pathRef : "PixelFont/font_";
 
-    var fontChars = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'colon', 'equals', 'period', 'comma', 'exclamation_point', 'question_mark', 'space'];
-    var fonts = {};
+    let fontChars = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'colon', 'equals', 'period', 'comma', 'exclamationPoint', 'questionMark', 'space', 'slash', 'addition', 'subtraction'];
+    let fonts = {};
 
     function getChar(char) {
         char = char.toLowerCase();
@@ -911,22 +1199,25 @@ const Font = function (pathRef) {
             if (char === "=") return 'equals';
             if (char === ".") return 'period';
             if (char === ",") return 'comma';
-            if (char === "!") return 'exclamation_point';
-            if (char === "?") return 'question_mark';
+            if (char === "!") return 'exclamationPoint';
+            if (char === "?") return 'questionMark';
+            if (char === "/") return 'slash';
+            if (char === "+") return 'addition';
+            if (char === "-") return 'subtraction';
         }
         return '';
     }
 
-    var preloadimages = async function () {
-        var texxture;
-        for (var i in fontChars) {
+    let preloadimages = async function () {
+        let texxture;
+        for (let i in fontChars) {
             texxture = fontChars[i];
             fonts[texxture] = new Image();
             fonts[texxture].onerror = async function () {
-                var textyure = this.src.split(path)[1].split('.')[0];
+                let textyure = this.src.split(path)[1].split('.')[0];
 
                 this.onerror = async function () {
-                    for (var j = 0; j < fontChars.length; j++) {
+                    for (let j = 0; j < fontChars.length; j++) {
                         if (fontChars[j] === textyure) {
                             fontChars.splice(j, 1);
                             j--;
@@ -947,23 +1238,53 @@ const Font = function (pathRef) {
     }
 }
 
+const Audios = function () {
+    const audio = new GameAudio();
+
+    async function loadAudios() {
+        audio.setDefaults({ source: 'audios', type: 'wav' });
+        await audio.create('GameMusic', 'EnemyDeath', 'EnemyHurt', 'EnemyHurtHard', 'WallPlace', 'WallHurt', 'WallDeath', 'HealthPickup', 'HealthUse', 'PlayerDeath', 'PlayerHurt', 'PlayerSwing', 'HealthNull', 'PackagePickup', 'PackageDrop', 'PlayerStep', 'PackageDeath');
+        audio.setVolume('HealthUse', 60);
+        audio.setVolume('HealthPickup', 60);
+        audio.setVolume('HealthNull', 60);
+        audio.setVolume('WallPlace', 50);
+        audio.setVolume('WallHurt', 50);
+        audio.setVolume('WallDeath', 50);
+        audio.setVolume('EnemyHurt', 60);
+        audio.setVolume('EnemyHurtHard', 60);
+        audio.setVolume('EnemyDeath', 60);
+        audio.setVolume('PlayerHurt', 60);
+        audio.setVolume('PlayerDeath', 60);
+        audio.setVolume('PlayerSwing', 40);
+        audio.setVolume('PackageDrop', 60);
+        audio.setVolume('PackagePickup', 60);
+        audio.setVolume('PackageDeath', 60);
+    }
+
+    loadAudios();
+
+    return {
+        audio
+    }
+}
+
 const Texture = function (pathRef) {
 
-    var textureList = ["player", "wall", "floor", "bedrock", "blockDamage", "enemy", "health", "potion", "package", "GUIPanel", "pause_screen", "play_screen", "death_screen", "crosshair", "buildOptions", "mousePos"];
-    var textures = {};
+    let textureList = ["player", "wall", "floor", "bedrock", "blockDamage", "enemy", "health", "potion", "package", "GUIPanel", "pauseScreen", "playScreen", "deathScreen", "crosshair", "buildOptions", "mousePos", "packageTime", "powerupTime", "enemAim", "powerupBarrage", "powerupStrength", "glowBarrage", "glowStrength", "blackDropSmall"];
+    let textures = {};
 
-    var path = pathRef ? pathRef : "textures/";
+    let path = pathRef ? pathRef : "textures/";
 
-    var preloadimages = async function () {
-        var texxture;
-        for (var i in textureList) {
+    let preloadimages = async function () {
+        let texxture;
+        for (let i in textureList) {
             texxture = textureList[i];
             textures[texxture] = new Image();
             textures[texxture].onerror = async function () {
-                var textyure = this.src.split(path)[1].split('.')[0];
+                let textyure = this.src.split(path)[1].split('.')[0];
 
                 this.onerror = async function () {
-                    for (var j = 0; j < textureList.length; j++) {
+                    for (let j = 0; j < textureList.length; j++) {
                         if (textureList[j] === textyure) {
                             textureList.splice(j, 1);
                             j--;
@@ -1021,7 +1342,7 @@ function drawTxt(string, x, y, h, dx, dy, dw, dh) {
 
     let char;
     let j = 0;
-    for (var i in string) {
+    for (let i in string) {
         char = gameVars.font.getChar(string[i]);
         if (char === '') continue;
         screen.drawImage(gameVars.font.fonts[char], dx, dy, dw, dh, x + (j * dist), y, w, h); // parseInt(w), parseInt(h));
@@ -1057,56 +1378,92 @@ function Level(w, h) {
 
     const maps = [
         [
-            [0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,0,0,0],
-            [0,0,1,1,1,1,1,1,0,0],
-            [0,0,1,0,0,0,0,1,0,0],
-            [0,0,1,0,0,0,0,1,0,0],
-            [0,0,1,1,1,1,1,1,0,0],
-            [0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,0,0,0]
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 1, 1, 1, 1, 1, 1, 0, 0],
+            [0, 0, 1, 0, 0, 0, 0, 1, 0, 0],
+            [0, 0, 1, 0, 0, 0, 0, 1, 0, 0],
+            [0, 0, 1, 1, 1, 1, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         ],
         [
-            [0,0,0,0,1,0,0,0,0,0],
-            [0,0,0,0,1,0,0,0,0,0],
-            [1,1,1,0,1,1,1,1,0,0],
-            [0,0,1,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,1,0,0],
-            [0,0,1,1,1,1,0,1,1,1],
-            [0,0,0,0,0,1,0,0,0,0],
-            [0,0,0,0,0,1,0,0,0,0]
+            [0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+            [1, 1, 1, 0, 1, 1, 1, 1, 0, 0],
+            [0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+            [0, 0, 1, 1, 1, 1, 0, 1, 1, 1],
+            [0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 0, 0, 0, 0]
         ],
         [
-            [0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,0,0,0]
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 1, 1, 1, 1, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 1, 1, 0, 0, 0, 0, 1, 1, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 1, 1, 1, 0, 0, 1, 1, 1, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 1, 1, 0, 0, 0, 0, 1, 1, 0]
+        ],
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
+            [0, 1, 0, 1, 1, 0, 1, 0, 1, 0],
+            [0, 1, 0, 0, 0, 0, 1, 0, 1, 0],
+            [0, 1, 0, 1, 0, 0, 1, 0, 1, 0],
+            [0, 1, 0, 1, 0, 0, 1, 0, 1, 0],
+            [0, 1, 0, 1, 0, 0, 0, 0, 1, 0],
+            [0, 1, 0, 1, 0, 1, 1, 0, 1, 0],
+            [0, 1, 0, 0, 0, 0, 0, 0, 0, 0]
+        ],
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 1, 0, 0, 1, 0, 0, 0],
+            [0, 1, 1, 1, 0, 0, 1, 1, 1, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 1, 1, 1, 0, 0, 1, 1, 1, 0],
+            [0, 0, 0, 1, 0, 0, 1, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        ],
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         ]
     ]
 
     const generateMap = () => {
         clearMap();
         const theMap = Dani.random(maps, 1);
-        for(let y = 0; y < theMap.length; y++) {
-            for(let x = 0; x < theMap[y].length; x++) {
-                if(theMap[y][x] === 0)
+        for (let y = 0; y < theMap.length; y++) {
+            for (let x = 0; x < theMap[y].length; x++) {
+                if (theMap[y][x] === 0)
                     this.block[x][y].id = Tile.floor;
-                else if(theMap[y][x] === 1)
+                else if (theMap[y][x] === 1)
                     this.block[x][y].id = Tile.wall;
             }
         }
+        const i = Dani.random(1);
+        const j = Dani.random(1);
         for (let x = 0; x < w; x++)
             for (let y = 0; y < h; y++) {
-                if(Dani.random(100) > 95)
+                if ((x - i) % 2 === 0 && (y - j) % 2 === 0 && Dani.random(10) > 7)
                     this.block[x][y].id = Tile.bedrock;
-        }
-    }
+            }
 
-    generateMap();
+        //clearing char tiles
+        this.block[4][3].id = Tile.floor;
+        this.block[5][3].id = Tile.floor;
+        this.block[4][4].id = Tile.floor;
+        this.block[5][4].id = Tile.floor;
+    }
 
     this.reset = function () {
         generateMap();
@@ -1115,12 +1472,13 @@ function Level(w, h) {
     this.tick = function () {
     }
     this.render = function () {
-        let id, i=0;
+        let id, i = 0;
         for (let x = 0; x < w; x++)
-            for (let y = 0; y < h; y++) {i++;
+            for (let y = 0; y < h; y++) {
+                i++;
                 id = this.block[x][y].id
-                if(id === Tile.floor) {
-                    const dX = i%12===0?1:i%2===0?2:0;
+                if (id === Tile.floor) {
+                    const dX = i % 12 === 0 ? 1 : i % 2 === 0 ? 2 : 0;
                     drawImg(id, x * this.size, y * this.size, this.size, this.size, dX * 16, 0, 16, 16);
                 } else {
                     drawImg(id, x * this.size, y * this.size, this.size, this.size, 0, 0, 16, 16);
@@ -1130,7 +1488,7 @@ function Level(w, h) {
                 drawImg('blockDamage', x * this.size, y * this.size, this.size, this.size, dmgAnim * 16, 0, 16, 16);
             }
     }
-    this.path = function (startPos, endPos) {
+    this.findPath = function (startPos, endPos, passables) {
         const block = this.block;
         const map = {};
         for (let x = 0; x < w; x++) {
@@ -1158,18 +1516,19 @@ function Level(w, h) {
         const spreadsLeft = [];
         function attemptSpread(id, x, y, roots) {
             try {
-                if (!map[x][y].taken && block[x][y].id === Tile.floor && !pathFound) {
-                    map[x][y].taken = true;
-                    map[x][y].num = id + 1;
-                    map[x][y].roots = roots;
-                    map[x][y].roots.push({ x, y });
-                    if (x === endPos.x && y === endPos.y) {
-                        pathFound = true;
-                        properPath = map[x][y].roots;
-                        return;
+                for (let i in passables)
+                    if (!map[x][y].taken && block[x][y].id === passables[i] && !pathFound) {
+                        map[x][y].taken = true;
+                        map[x][y].num = id + 1;
+                        map[x][y].roots = roots;
+                        map[x][y].roots.push({ x, y });
+                        if (x === endPos.x && y === endPos.y) {
+                            pathFound = true;
+                            properPath = map[x][y].roots;
+                            return;
+                        }
+                        spreadsLeft.push({ id, x, y });
                     }
-                    spreadsLeft.push({ id, x, y });
-                }
             } catch (e) {
                 // console.warn(e.message, x, y)
             }
@@ -1227,32 +1586,40 @@ function Level(w, h) {
             }
         } catch { }
     }
+
+
+
+    generateMap();
 }
 
-
-
 function Spawner() {
-    const maxEntities = 1; //25; //10;
-    let weight = Math.floor(score/adjuster);
-    let spawnTimer = Dani.random(20, 45) - weight;
+    const lowestEnems = 4;
+    let maxEntities = 1 + lowestEnems;
+    let weight = Math.floor(score / adjuster);
+    let spawnTimer = Dani.random(25, 50) - weight / 2;
     let spawnTime = 0;
     const spawn = function () {
         if (gameVars.entities.Length() < maxEntities) {
-            const x = Dani.random(lW);
-            const y = Dani.random(lH - 1);
-            if (gameVars.level.isBlock(x, y, Tile.floor)) {
-                gameVars.entities.addEntity('enem', x * gameVars.level.size, y * gameVars.level.size + playerH);
+            for (i = 0; i < spawnDropTries; i++) {
+                const x = Dani.random(lW);
+                const y = Dani.random(lH - 1);
+                if (gameVars.entities.isFreeTile(x, y) && gameVars.level.isBlock(x, y, Tile.floor)) {
+                    const xx = x * gameVars.level.size + playerW / 2;
+                    const yy = y * gameVars.level.size + playerH;
+                    gameVars.entities.addEntity('enem', xx, yy);
+                    break;
+                }
             }
         }
     }
     function tick() {
         if (spawnTime >= spawnTimer) {
+            weight = Math.floor(score / adjuster);
+            maxEntities = 1 + lowestEnems + Dani.lock(weight * 2, 0, 19);
+            spawnTimer = Dani.lock(Dani.random(25, 50) - weight / 2, 15, 50);
+
             spawnTime = 0;
             spawn();
-
-            weight = Math.floor(score/adjuster);
-            spawnTimer = Dani.random(20, 45) - weight;
-            spawnTimer = Dani.lock(10, 100);
         } else {
             spawnTime++;
         }
@@ -1265,7 +1632,7 @@ function Spawner() {
 function Checker() {
     function usePotion() {
         if (potions > 0 && playerHealth < playerMaxHealth) {
-            playerHealth += 10;
+            playerHealth += 10 + Dani.random(Math.floor(score / adjuster) * 5);
             playerHealth = Dani.lock(playerHealth, 0, playerMaxHealth);
             gameVars.gui.removePotion();
             gameVars.audios.audio.playOnce('HealthUse');
@@ -1287,9 +1654,9 @@ function Checker() {
         }
     }
 
-    function punchWall(bX, bY, xDir, yDir, strength, target) {
-        const pX = Math.floor((bX) / gameVars.level.size) + xDir;
-        const pY = Math.floor((bY) / gameVars.level.size) + yDir;
+    function punchWall(bX, bY, strength, target) {
+        const pX = Math.floor((bX) / gameVars.level.size);
+        const pY = Math.floor((bY) / gameVars.level.size);
         try {
             if (gameVars.level.isBlock(pX, pY, Tile.wall)) {
                 gameVars.level.hitBlock(pX, pY, strength, target);
@@ -1315,16 +1682,16 @@ function Checker() {
 }
 
 function Drops() {
-    const size = 35;
+    const size = 50;
     const items = [];
     const ticker = 50;
 
-
-    const dropTimer = 500;
+    let weight = Math.floor(score / adjuster);
+    let dropTimer = 250 - weight * 10;
     let dropTime = 0;
 
     const drop = function (name, x, y, timeLeft) {
-        items.push({ name, x, y, time: timeLeft || ticker });
+        items.push({ name, x, y, time: timeLeft || ticker, ticker: timeLeft || ticker });
     }
 
     const reset = function () {
@@ -1334,19 +1701,35 @@ function Drops() {
     }
 
     const dropItem = function () {
-        if (Dani.random(100) > 1) {
-            dropPackage();
+        if (Dani.random(100) > 25) {
+            weight = Math.floor(score / adjuster);
+            const rand = Dani.random(100);
+            if (rand >= 75 - Dani.lock(weight, 0, 15)) //rand of 75 to 60
+                dropSomethingDown('package', 150);
+            else if (rand >= 55 - Dani.lock(weight, 0, 30)) //rand of 55 to 25
+                dropSomethingDown(Dani.random(['powerupBarrage', 'powerupStrength'], 1), 200);
+            else if (rand >= 25 - Dani.lock(weight, 0, 20)) //rand of 25 to 5
+                dropSomethingDown('potion', 100);
         }
     }
-    const dropPackage = function () {
-        const x = Dani.random(lW);
-        const y = Dani.random(lH - 1);
-        if (gameVars.level.isBlock(x, y, Tile.floor)) {
-            drop('package', x * gameVars.level.size + size / 2, y * gameVars.level.size + size, 100);
+    const dropSomethingDown = function (item, timeLeft) {
+        for (i = 0; i < spawnDropTries; i++) {
+            const x = Dani.random(lW);
+            const y = Dani.random(lH - 1);
+            if (gameVars.entities.isFreeTile(x, y) && gameVars.level.isBlock(x, y, Tile.floor)) {
+                gameVars.audios.audio.playOnce('PackageDrop');
+                const xx = x * gameVars.level.size + size / 2;
+                const yy = y * gameVars.level.size + size;
+                drop(item, xx, yy, timeLeft);
+                break;
+            }
         }
     }
     function tick() {
         if (dropTime >= dropTimer) {
+            weight = Math.floor(score / adjuster);
+            dropTimer = Dani.lock(Dani.random(225, 250) - weight * 10, 25, 250);
+
             dropTime = 0;
             dropItem();
         } else {
@@ -1354,10 +1737,16 @@ function Drops() {
         }
         for (const i in items) {
             const item = items[i];
-            if (!item.ticker) item.ticker = 1;
-            else (item.ticker++);
-            if (item.ticker >= item.time)
+            if (gameVars.entities.testTouchingTile(item.x, item.y, size / 2, size / 2, [Tile.wall, Tile.bedrock])) {
                 items.splice(parseInt(i), 1);
+                continue;
+            }
+            if (!item.ticker) item.ticker = item.time;
+            else (item.ticker--);
+            if (item.ticker <= 0) {
+                gameVars.audios.audio.playOnce('PackageDeath');
+                items.splice(parseInt(i), 1);
+            }
 
         }
         checkToPickupItem();
@@ -1366,49 +1755,61 @@ function Drops() {
         for (const i in items) {
             const item = items[i];
             drawImg(item.name, item.x - (size / 2), item.y - (size), size, size);
+            drawImg('packageTime', item.x - (size / 2), item.y - (size * 3 / 4), size, size / 4, 0, 0, 16, 4); //background itself
+            drawImg('packageTime', item.x - (size / 2), item.y - (size * 3 / 4), size / item.time * item.ticker, size / 4, 0, 4, 16 / item.time * item.ticker, 4); //timer itself
         }
     }
 
     function checkToPickupItem(usingMouse) {
+        weight = Math.floor(score / adjuster);
         for (const i in items) {
             const item = items[i];
             if (nearChar(item.x, item.y, size, size, usingMouse)) {
                 if (item.name === 'potion') {
                     gameVars.audios.audio.playOnce('HealthPickup');
-                    items.splice(parseInt(i), 1);
                     gameVars.gui.addPotion(1);
+                    gameVars.gui.upMaxHealth(Dani.random(1, 5));
                     gameVars.gui.addScore(scorePotionPickup);
                 } else if (item.name === 'package') {
                     gameVars.audios.audio.playOnce('PackagePickup');
-                    items.splice(parseInt(i), 1);
-                    gameVars.gui.addWall(Dani.random(1, 10));
+                    gameVars.gui.addWall(Dani.random(1, 8));
                     gameVars.gui.addPotion(Dani.random(1, 3));
+                    gameVars.gui.upMaxHealth(Dani.random(10, 50));
                     gameVars.gui.addScore(scorePackagePickup);
+                } else if (item.name === 'powerupBarrage') {
+                    gameVars.audios.audio.playOnce('PackagePickup');
+                    gameVars.powerups.addPowerUp('barrage', 100 + Dani.lock(Dani.random(weight*10), 0, 150));
+                    gameVars.gui.addScore(scorePowerUpPickup);
+                } else if (item.name === 'powerupStrength') {
+                    gameVars.audios.audio.playOnce('PackagePickup');
+                    gameVars.powerups.addPowerUp('strength', 150 + Dani.lock(Dani.random(weight*8), 0, 120));
+                    gameVars.gui.addScore(scorePowerUpPickup);
                 }
+                items.splice(parseInt(i), 1); //to remove the item (put inside separate if statements if you dont want to remove all instantly in the future)
             }
         }
     }
 
     function nearChar(x, y, w, h, usingMouse) {
         if (usingMouse) {
-            var newX = crosshairCord.x;
-            var newY = crosshairCord.y - (crosshairSize / 2);
-            var xx = newX - x;
-            var yy = newY - (y - h / 2);
-            var distance = Math.sqrt((xx * xx) + (yy * yy));
+            let newX = crosshairCord.x;
+            let newY = crosshairCord.y;
+            let xx = newX - x;
+            let yy = newY - (y - h / 2);
+            let distance = Math.sqrt((xx * xx) + (yy * yy));
 
-            var thisD = w / 2;
+            let thisD = w / 3;
             if (distance < (thisD + crosshairSize / 2)) {
                 return true
             }
         } else {
-            var newX = playerX;
-            var newY = playerY - (playerW / 2);
-            var xx = newX - x;
-            var yy = newY - (y - h / 2);
-            var distance = Math.sqrt((xx * xx) + (yy * yy));
+            let newX = playerX;
+            let newY = playerY - (playerW / 2);
+            let xx = newX - x;
+            let yy = newY - (y - h / 2);
+            let distance = Math.sqrt((xx * xx) + (yy * yy));
 
-            var thisD = w / 2;
+            let thisD = w / 3;
             if (distance < (thisD + playerW / 2)) {
                 return true
             }
@@ -1429,8 +1830,8 @@ function Drops() {
 function GUI() {
     const size = gameVars.level.size;
     function addScore(val) {
-        const weight = Math.floor(score/adjuster);
-        score += Math.round(val + val*weight/5) || Math.round(1 + weight/5);
+        const weight = Math.floor(score / adjuster);
+        score += Math.round(val + val * weight / 5) || Math.round(1 + weight / 5);
         score = Dani.lock(score, 0, 9999999);
     }
     function removeScore(val) {
@@ -1455,6 +1856,12 @@ function GUI() {
         walls -= val || 1;
         walls = Dani.lock(walls, 0, 99);
     }
+    function upMaxHealth(val) {
+        const healthRatio = playerHealth / playerMaxHealth;
+        playerMaxHealth += val || 10;
+        playerMaxHealth = Dani.lock(playerMaxHealth, 0, 999);
+        playerHealth = Dani.lock(Math.floor(playerMaxHealth * healthRatio), 0, 999);
+    }
 
     function render() {
 
@@ -1463,15 +1870,15 @@ function GUI() {
 
         //player health
         drawImg('health', 16, 415.5, 100 / playerMaxHealth * playerHealth, 25, 0, 0, 32 / playerMaxHealth * playerHealth, 8); //health itself
-        drawTxt(`${playerHealth}`, 20, 415, 19);
+        drawTxt(`${playerHealth}/${playerMaxHealth}`, 20, 415, 19);
 
-        // //potion baord
+        // //potion gui
         drawTxt(`${potions}`, 158, 415, 19);
 
-        // //wall baord
+        // //wall gui
         drawTxt(`${walls}`, 275, 415, 19);
 
-        // //score baord
+        // //score gui
         drawTxt(`${score}`, 393, 415, 19);
 
         // //cursor pos
@@ -1484,30 +1891,65 @@ function GUI() {
         removePotion,
         addWall,
         removeWall,
+        upMaxHealth,
         render
     }
 }
 
-const Audios = function () {
-    const audio = new GameAudio();
+function PowerUps() {
+    const timed = powerUpDuration;
+    const powerUps = {
+        strength: { timer: 0, active: false, hY: 1 },
+        barrage: { timer: 0, active: false, hY: 2 }
+    }
+    const addPowerUp = function (name, time) {
+        powerUps[name].timer = time || timed;
+        powerUps[name].active = true;
+    }
+    const tick = function () {
+        for (const i in powerUps) {
+            if (powerUps[i].timer > 0) {
+                if (!powerUps[i].active) powerUps[i].active = true;
+                powerUps[i].timer--;
+            } else {
+                if (powerUps[i].active) powerUps[i].active = false;
+            }
+        }
+    }
+    const txtH = 19;
+    const barH = 12.5;
+    const yOffSet = barH * 3;
+    const powerImgW = 21;
+    const powerImgH = 4;
+    const powerWidth = 65.625; //21/160*500
+    const render = function () {
+        let j = 0;
+        screen.globalAlpha = (playerBX < 125 && playerBY < 125) ? 0.5 : 0.8;
+        for (const i in powerUps) {
+            if (powerUps[i].active) {
+                drawImg('blackDropSmall', 6.25, 6.25 + j * (txtH + yOffSet), 125, 46.875); //blackdrop itself
 
-    async function loadAudios() {
-        audio.setDefaults({ source: 'audios', type: 'wav' });
-        await audio.create('GameMusic', 'EnemyDeath', 'EnemyHurt', 'WallPlace', 'WallHurt', 'WallDeath', 'HealthPickup', 'HealthUse', 'PlayerDeath', 'PlayerHurt', 'HealthNull', 'PackagePickup', 'PlayerStep');
-        audio.setVolume('HealthUse', 60);
-        audio.setVolume('HealthPickup', 60);
-        audio.setVolume('PackagePickup', 60);
-        audio.setVolume('WallPlace', 30);
-        audio.setVolume('WallHurt', 45);
-        audio.setVolume('WallDeath', 40);
-        audio.setVolume('PlayerDeath', 65);
-        audio.setVolume('PlayerStep', 30);
+                drawTxt(`${i}+`, 12.5, 12.5 + (j * (txtH + yOffSet)), txtH);
+                drawImg('powerupTime', 12.5, 15.65 + (j * (txtH + yOffSet)) + txtH, powerWidth, barH, 0, 0, powerImgW, powerImgH); //background itself
+                drawImg('powerupTime', 12.5, 15.65 + (j * (txtH + yOffSet)) + txtH, powerWidth / timed * powerUps[i].timer, barH, 0, powerUps[i].hY * powerImgH, powerImgW / timed * powerUps[i].timer, powerImgH); //timer itself
+                j++;
+            }
+        }
+        screen.globalAlpha = 1;
+    }
+    function isBarrage() {
+        return powerUps['barrage'].active;
+    }
+    function isStrength() {
+        return powerUps['strength'].active;
     }
 
-    loadAudios();
-
     return {
-        audio
+        tick,
+        render,
+        addPowerUp,
+        isBarrage,
+        isStrength
     }
 }
 
@@ -1522,6 +1964,7 @@ async function main() {
     gameVars.entities = new Entity();
     gameVars.entities.addEntity('char', 250, 225);
 
+    gameVars.powerups = new PowerUps();
 
     gameVars.spawner = new Spawner();
     gameVars.drops = new Drops();
@@ -1532,25 +1975,24 @@ async function main() {
     gameVars.audios = await new Audios();
 
     setInterval(run, 50);
-
-
-    // setTimeout(resetGame, 5000);
 }
-
 
 const resetGame = function () {
     //reset let variables
     PAUSED = false;
     musicStopped = false;
 
+    playerMaxHealth = defaultPlayerMaxHealth;
     playerHealth = playerMaxHealth;
     playerX = 0;
     playerY = 0;
     playerBX = 0;
     playerBY = 0;
     playerDead = false;
+    canRestart = false;
     punchStrength = defaultPunchStrength;
-    playerReach = 45;
+    wallStrength = defaultWallStrength;
+    playerReach = defaultPlayerReach;
 
     movingLeft = false;
     movingRight = false;
@@ -1563,6 +2005,8 @@ const resetGame = function () {
     score = 0;
     potions = 0;
     walls = 0;
+
+    canPunch = false;
     canUsePotion = false;
 
     //reset entities
@@ -1575,7 +2019,8 @@ const resetGame = function () {
     //reset level
     gameVars.level.reset();
 
-    gameVars.audios.audio.playLoop('GameMusic');
+    gameVars.audios.audio.restart('GameMusic');
+    gameVars.audios.audio.setVolume('GameMusic', 100);
 }
 
 function tick() {
@@ -1585,6 +2030,7 @@ function tick() {
     gameVars.entities.tick();
     gameVars.aim.tick();
     gameVars.checker.tick();
+    gameVars.powerups.tick();
 }
 
 function render() {
@@ -1600,27 +2046,28 @@ function render() {
     gameVars.drops.render();
     gameVars.entities.render();
     gameVars.aim.render();
+    gameVars.powerups.render();
     gameVars.gui.render();
 }
 
-
 function run() {
     if (!init) {
-        if (!PAUSED && !playerDead) {
+        if (!PAUSED && !canRestart) {
             tick();
             render();
             if (musicStopped) musicStopped = false;
         } else if (PAUSED) {
-            drawImg('pause_screen', 50, 125, 400, 200);
+            drawImg('pauseScreen', 50, 125, 400, 200);
         } else if (playerDead) {
-            drawImg('death_screen', 50, 125, 400, 200);
+            drawImg('deathScreen', 50, 125, 400, 200);
             if (!musicStopped) {
-                gameVars.audios.audio.stop('GameMusic');
+                gameVars.audios.audio.setVolume('GameMusic', 70);
+                gameVars.audios.audio.setLoop('GameMusic', false);
                 musicStopped = true;
             }
         }
     } else {
-        drawImg('play_screen', 0, 0, 500, 450);
+        drawImg('playScreen', 0, 0, 500, 450);
     }
 }
 
@@ -1638,14 +2085,9 @@ window.onload = function () {
     // stage.style.cursor = 'none';
 }
 
-const leftMouseBtn = 0;
-const rightMouseBtn = 2;
-const actionKey = leftMouseBtn;
-const buildKey = rightMouseBtn;
-let rightClicked = false;
 function mouseIsUp(e) {
     e.preventDefault();
-    // console.log('uo')
+    crosshairCord = gameVars.aim.getCoords();
     if (e.button === buildKey) {
         rightClicked = false;
     }
@@ -1656,23 +2098,31 @@ function mouseIsMoving(e) {
     crosshairCord = gameVars.aim.getCoords();
 }
 
+function performClick(mouseDidIt) {
+    if (mouseDidIt && gameVars.powerups.isBarrage()) return;
+    gameVars.audios.audio.playOnce('PlayerSwing');
+    gameVars.entities.processPunch();
+    gameVars.checker.punchWall(crosshairCord.bX, crosshairCord.bY, Dani.random(wallStrength - 5, wallStrength), 'player');
+    gameVars.drops.checkToPickupItem(true);
+    doingAction = true;
+}
+
 function mouseIsDown(e) {
     //e.button describes the mouse button that was clicked
     // 0 is left, 1 is middle, 2 is right
+    crosshairCord = gameVars.aim.getCoords();
     if (e.button === actionKey) {
-        gameVars.entities.processPunch();
-        gameVars.checker.punchWall(crosshairCord.bX, crosshairCord.bY, 0, 0, Dani.random(wallStrength - 5, wallStrength), 'player');
-        gameVars.drops.checkToPickupItem(true);
-        doingAction = true;
+        if (!PAUSED && !playerDead) {
+            performClick(true);
+        }
     } else if (e.button === buildKey) {
         rightClicked = true;
     }
 }
 
-
 function keyIsUp(e) {
     e.preventDefault();
-    if (e.keyCode === 80 || e.keyCode === 32 || e.keyCode === 82) //P or space or R
+    if (e.keyCode === 80 || e.keyCode === 81 || e.keyCode === 32 || e.keyCode === 82) //P or Q or space or R
         setKey(e.keyCode, false, true);
     else
         setKey(e.keyCode, false);
@@ -1682,6 +2132,7 @@ function keyIsDown(e) {
     e.preventDefault();
     setKey(e.keyCode, true);
 }
+
 function setKey(key, cond, pressOnly) {
     switch (key) {
         case 65: //left or A
@@ -1701,17 +2152,17 @@ function setKey(key, cond, pressOnly) {
             movingDown = cond;
             break;
         case 80: //P
+        case 81: //Q
             if (pressOnly) {
                 if (init) {
                     init = false;
                     PAUSED = false;
                     gameVars.audios.audio.playLoop('GameMusic');
-                } else
-                    if (!playerDead) {
-                        PAUSED = !PAUSED;
-                        if (PAUSED) gameVars.audios.audio.pause('GameMusic');
-                        else if (!PAUSED) gameVars.audios.audio.play('GameMusic');
-                    }
+                } else if (!playerDead) {
+                    PAUSED = !PAUSED;
+                    if (PAUSED) gameVars.audios.audio.pause('GameMusic');
+                    else if (!PAUSED) gameVars.audios.audio.play('GameMusic');
+                }
             }
             break;
         case 32: // space
@@ -1719,7 +2170,7 @@ function setKey(key, cond, pressOnly) {
                 canUsePotion = true;
             break;
         case 82: //R
-            if (pressOnly && playerDead) resetGame();
+            if (pressOnly && canRestart) resetGame();
             break;
         default:
             console.log('not moving really', key)
